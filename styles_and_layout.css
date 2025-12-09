@@ -150,6 +150,13 @@ header {
     margin-bottom: 30px;
 }
 
+.grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
 /* ========================================
    4. FORMS & INPUTS
    ======================================== */
@@ -768,9 +775,33 @@ body.dark-mode .mobile-menu-toggle {
         width: 100% !important;
     }
 
+    /* Filter toggle button visible on mobile */
+    #filter-toggle {
+        display: block !important;
+        width: 100%;
+    }
+
+    /* Transactions container stack on mobile */
+    #transactions-container {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Sidebar hidden by default on mobile */
+    #filters-sidebar {
+        display: none;
+    }
+
+    /* Sidebar visible when toggle is active */
+    #filters-sidebar.active {
+        display: block;
+        order: -1;
+        margin-bottom: 20px;
+    }
+
     /* Grid layouts stack on mobile */
     .grid-3,
-    .grid-2 {
+    .grid-2,
+    .grid-4 {
         grid-template-columns: 1fr;
         gap: 15px;
         margin-bottom: 20px;

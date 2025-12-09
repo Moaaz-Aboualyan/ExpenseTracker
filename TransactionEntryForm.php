@@ -30,10 +30,19 @@ try {
     // ignore if lacks permission; install.sql also creates it
 }
 
-// Load categories for this user
-$catsStmt = $pdo->prepare('SELECT id, name FROM categories WHERE user_id = ? ORDER BY name');
+// Load categories separated by type
+$catsStmt = $pdo->prepare('SELECT id, name, type FROM categories WHERE user_id = ? ORDER BY type DESC, name');
 $catsStmt->execute([$uid]);
-$cats = $catsStmt->fetchAll();
+$allCats = $catsStmt->fetchAll();
+$expenseCats = [];
+$incomeCats = [];
+foreach ($allCats as $c) {
+    if ($c['type'] === 'income') {
+        $incomeCats[] = $c;
+    } else {
+        $expenseCats[] = $c;
+    }
+}
 
 // Load quick presets for this user
 $presets = [];
@@ -114,7 +123,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!in_array($type, array('income','expense'), true)) {
             $type = 'expense';
         }
-        if ($amount <= 0) {
+        if ($category_id === null) {
+            $err = 'Please select a category.';
+        } elseif ($amount <= 0) {
             $err = 'Amount must be greater than 0.';
         } else {
             $stmt = $pdo->prepare('INSERT INTO transactions(user_id, category_id, type, amount, note, date) VALUES(?,?,?,?,?,?)');
@@ -136,13 +147,19 @@ include 'includes/header.php';
         <div class="grid-2" style="grid-template-columns: 1fr 1fr; margin-bottom: 0;">
             <div class="form-group">
                 <label>Date</label>
-                <input type="date" name="date" value="<?php echo date('Y-m-d'); ?>">
+                <input type="date" name="date" value="<?php echo date('Y-m-d'); ?>" required>
             </div>
             <div class="form-group">
                 <label>Type</label>
                 <div style="display:flex; gap:10px; align-items:center;">
-                    <label style="display:flex; align-items:center; gap:6px;"><input type="radio" name="type" value="expense" checked> Expense</label>
-                    <label style="display:flex; align-items:center; gap:6px;"><input type="radio" name="type" value="income"> Income</label>
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="radio" name="type" value="expense" checked onchange="updateCategoryOptions()"> 
+                        <i class="fas fa-minus-circle" style="color:#ef4444;"></i> Expense
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="radio" name="type" value="income" onchange="updateCategoryOptions()"> 
+                        <i class="fas fa-plus-circle" style="color:#10b981;"></i> Income
+                    </label>
                 </div>
             </div>
         </div>
@@ -150,16 +167,28 @@ include 'includes/header.php';
         <div class="grid-2" style="grid-template-columns: 1fr 1fr; margin-bottom: 0;">
             <div class="form-group">
                 <label>Category</label>
-                <select name="category">
+                <select name="category" id="categorySelect" required>
                     <option value="">Choose a Category...</option>
-                    <?php foreach ($cats as $c): ?>
-                        <option value="<?php echo (int)$c['id']; ?>"><?php echo e($c['name']); ?></option>
-                    <?php endforeach; ?>
+                    <?php if (!empty($expenseCats)): ?>
+                        <optgroup label="Expenses">
+                            <?php foreach ($expenseCats as $c): ?>
+                                <option value="<?php echo (int)$c['id']; ?>" data-type="expense"><?php echo e($c['name']); ?></option>
+                            <?php endforeach; ?>
+                        </optgroup>
+                    <?php endif; ?>
+                    <?php if (!empty($incomeCats)): ?>
+                        <optgroup label="Income">
+                            <?php foreach ($incomeCats as $c): ?>
+                                <option value="<?php echo (int)$c['id']; ?>" data-type="income"><?php echo e($c['name']); ?></option>
+                            <?php endforeach; ?>
+                        </optgroup>
+                    <?php endif; ?>
                 </select>
+                <small class="text-muted" style="display:block; margin-top:4px; font-size:0.8rem;" id="recurringNote" style="display:none;"></small>
             </div>
             <div class="form-group">
                 <label>Amount</label>
-                <input type="number" name="amount" placeholder="0.00" step="0.01">
+                <input type="number" name="amount" placeholder="0.00" step="0.01" required>
             </div>
         </div>
 
@@ -179,9 +208,42 @@ include 'includes/header.php';
 
         <?php if ($msg): ?><div class="text-green" style="margin-bottom:10px; font-size:0.9rem;"><?php echo e($msg); ?></div><?php endif; ?>
         <?php if ($err): ?><div class="text-red" style="margin-bottom:10px; font-size:0.9rem;"><?php echo e($err); ?></div><?php endif; ?>
-        <button type="submit" class="btn btn-primary">Save Transaction</button>
+        <button type="submit" class="btn btn-primary" style="width:100%;">
+            <i class="fas fa-save"></i> Save Transaction
+        </button>
     </form>
 </div>
+
+<script>
+function updateCategoryOptions() {
+    const typeRadios = document.querySelectorAll('input[name="type"]');
+    const selectedType = Array.from(typeRadios).find(r => r.checked)?.value || 'expense';
+    const categorySelect = document.getElementById('categorySelect');
+    const optgroups = categorySelect.querySelectorAll('optgroup');
+    const options = categorySelect.querySelectorAll('option:not([value=""])');
+    
+    // Hide/show optgroups based on type
+    optgroups.forEach(optgroup => {
+        const groupType = optgroup.getAttribute('label').toLowerCase();
+        const matchesType = (selectedType === 'expense' && groupType === 'expenses') || 
+                           (selectedType === 'income' && groupType === 'income');
+        optgroup.style.display = matchesType ? 'block' : 'none';
+    });
+    
+    // Hide/show options based on type
+    options.forEach(option => {
+        const optionType = option.getAttribute('data-type');
+        option.style.display = optionType === selectedType ? 'block' : 'none';
+    });
+    
+    // Reset to empty if current selection doesn't match type
+    const currentOption = categorySelect.selectedOptions[0];
+    if (currentOption && currentOption.value !== '' && currentOption.getAttribute('data-type') !== selectedType) {
+        categorySelect.value = '';
+    }
+}
+updateCategoryOptions();
+</script>
 
 <!-- Quick Add Presets -->
 <div id="quick-add-section" style="max-width: 800px; margin: 30px auto;">
@@ -216,18 +278,29 @@ include 'includes/header.php';
             </div>
             <div class="form-group">
                 <label>Type</label>
-                <select name="preset_type">
+                <select name="preset_type" id="presetTypeSelect" onchange="updatePresetCategoryOptions();">
                     <option value="expense">Expense</option>
                     <option value="income">Income</option>
                 </select>
             </div>
             <div class="form-group">
                 <label>Category</label>
-                <select name="preset_category">
+                <select name="preset_category" id="presetCategorySelect" required>
                     <option value="">Choose a Category...</option>
-                    <?php foreach ($cats as $c): ?>
-                        <option value="<?php echo (int)$c['id']; ?>"><?php echo e($c['name']); ?></option>
-                    <?php endforeach; ?>
+                    <?php if (!empty($expenseCats)): ?>
+                        <optgroup label="Expenses" data-type="expense">
+                            <?php foreach ($expenseCats as $c): ?>
+                                <option value="<?php echo (int)$c['id']; ?>" data-type="expense"><?php echo e($c['name']); ?></option>
+                            <?php endforeach; ?>
+                        </optgroup>
+                    <?php endif; ?>
+                    <?php if (!empty($incomeCats)): ?>
+                        <optgroup label="Income" data-type="income">
+                            <?php foreach ($incomeCats as $c): ?>
+                                <option value="<?php echo (int)$c['id']; ?>" data-type="income"><?php echo e($c['name']); ?></option>
+                            <?php endforeach; ?>
+                        </optgroup>
+                    <?php endif; ?>
                 </select>
             </div>
             <div class="form-group">
@@ -253,7 +326,12 @@ include 'includes/header.php';
                         <div style="display:flex; align-items:center; gap:10px;">
                             <div style="flex:1;">
                                 <strong><?php echo e($p['label']); ?></strong>
-                                <span class="text-muted" style="margin-left:8px; font-size:0.9rem;"><?php echo get_currency_symbol(); ?><?php echo number_format($p['amount'],2); ?> • <?php echo e($p['type']); ?><?php if (!empty($p['note'])): ?> • <?php echo e($p['note']); ?><?php endif; ?></span>
+                                <span class="text-muted" style="margin-left:8px; font-size:0.9rem;">
+                                    <i class="fas <?php echo $p['type'] === 'income' ? 'fa-plus-circle' : 'fa-minus-circle'; ?>" style="color:<?php echo $p['type'] === 'income' ? '#10b981' : '#ef4444'; ?>;"></i>
+                                    <?php echo get_currency_symbol(); ?><?php echo number_format($p['amount'],2); ?>
+                                    <span style="color:#999;"> • <?php echo ucfirst($p['type']); ?></span>
+                                    <?php if (!empty($p['note'])): ?><span style="color:#999;"> • <?php echo e($p['note']); ?></span><?php endif; ?>
+                                </span>
                             </div>
                             <form action="TransactionEntryForm.php" method="POST" onsubmit="return confirm('Delete this preset?');" style="margin:0;">
                                 <input type="hidden" name="action" value="preset_delete">
@@ -269,5 +347,31 @@ include 'includes/header.php';
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+function updatePresetCategoryOptions() {
+    const typeSelect = document.getElementById('presetTypeSelect');
+    const selectedType = typeSelect.value;
+    const categorySelect = document.getElementById('presetCategorySelect');
+    const optgroups = categorySelect.querySelectorAll('optgroup');
+    const options = categorySelect.querySelectorAll('option:not([value=""])');
+    
+    optgroups.forEach(optgroup => {
+        const groupType = optgroup.getAttribute('data-type');
+        optgroup.style.display = groupType === selectedType ? 'block' : 'none';
+    });
+    
+    options.forEach(option => {
+        const optionType = option.getAttribute('data-type');
+        option.style.display = optionType === selectedType ? 'block' : 'none';
+    });
+    
+    // Reset to empty
+    categorySelect.value = '';
+}
+
+// Initialize category display on page load (default to expense)
+document.addEventListener('DOMContentLoaded', updatePresetCategoryOptions);
+</script>
 
 <?php include 'includes/footer.php'; ?>

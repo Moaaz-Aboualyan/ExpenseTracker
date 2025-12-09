@@ -85,16 +85,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // Handle currency change
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'change_currency') {
-    $currency = trim(isset($_POST['currency']) ? $_POST['currency'] : '');
+    $new_currency = trim(isset($_POST['currency']) ? $_POST['currency'] : '');
+    $convert_values = isset($_POST['convert_values']) ? true : false;
     $valid_currencies = array('USD', 'MYR', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'INR', 'SGD');
     
-    if (!in_array($currency, $valid_currencies)) {
+    if (!in_array($new_currency, $valid_currencies)) {
         $err = 'Invalid currency selected.';
     } else {
+        $old_currency = $user['currency'];
+        
+        // If converting values and currencies are different
+        if ($convert_values && $old_currency !== $new_currency) {
+            // Simple conversion rates (relative to USD as base)
+            $rates = array(
+                'USD' => 1.00,
+                'EUR' => 0.92,
+                'GBP' => 0.79,
+                'MYR' => 4.72,
+                'JPY' => 149.50,
+                'AUD' => 1.54,
+                'CAD' => 1.36,
+                'CHF' => 0.88,
+                'CNY' => 7.24,
+                'INR' => 83.12,
+                'SGD' => 1.34
+            );
+            
+            // Calculate conversion factor
+            $from_rate = $rates[$old_currency];
+            $to_rate = $rates[$new_currency];
+            $conversion_factor = $to_rate / $from_rate;
+            
+            // Convert all transaction amounts
+            $update_transactions = $pdo->prepare('UPDATE transactions SET amount = amount * ? WHERE user_id = ?');
+            $update_transactions->execute([$conversion_factor, $uid]);
+            
+            // Convert all category budgets
+            $update_budgets = $pdo->prepare('UPDATE categories SET monthly_budget = monthly_budget * ?, recurring_amount = recurring_amount * ? WHERE user_id = ?');
+            $update_budgets->execute([$conversion_factor, $conversion_factor, $uid]);
+            
+            // Convert quick presets
+            $update_presets = $pdo->prepare('UPDATE quick_presets SET amount = amount * ? WHERE user_id = ?');
+            $update_presets->execute([$conversion_factor, $uid]);
+            
+            $msg = 'Currency changed to ' . $new_currency . ' and all values have been converted.';
+        } else {
+            $msg = 'Currency changed to ' . $new_currency . '.';
+        }
+        
+        // Update user currency
         $upd = $pdo->prepare('UPDATE users SET currency = ? WHERE id = ?');
-        $upd->execute([$currency, $uid]);
-        $_SESSION['user_currency'] = $currency;
-        $msg = 'Currency changed to ' . $currency . '.';
+        $upd->execute([$new_currency, $uid]);
+        $_SESSION['user_currency'] = $new_currency;
+        
         // Reload user data
         $st = $pdo->prepare('SELECT id, name, email, currency, dark_mode FROM users WHERE id = ? LIMIT 1');
         $st->execute(array($uid));
@@ -210,7 +253,14 @@ include 'includes/header.php';
             <input type="hidden" name="action" value="change_currency">
             <div class="form-group" style="margin:0;">
                 <label>Currency</label>
-                <div style="display:flex; gap:10px; align-items:end;">
+                <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px;">
+                    <div style="flex:0 0 auto; padding:10px 16px; background:rgba(59, 130, 246, 0.1); border:2px solid #3b82f6; border-radius:6px; text-align:center;">
+                        <div style="font-size:0.75rem; opacity:0.7; margin-bottom:2px;">Current</div>
+                        <div style="font-weight:700; font-size:1.2rem; color:#3b82f6;">
+                            <?php echo e(isset($user['currency']) ? $user['currency'] : 'USD'); ?>
+                        </div>
+                    </div>
+                    <i class="fas fa-arrow-right" style="font-size:1.2rem; opacity:0.5; flex:0 0 auto;"></i>
                     <select name="currency" style="flex:1;">
                         <option value="USD" <?php echo (isset($user['currency']) && $user['currency'] === 'USD' ? 'selected' : ''); ?>>USD - US Dollar</option>
                         <option value="EUR" <?php echo (isset($user['currency']) && $user['currency'] === 'EUR' ? 'selected' : ''); ?>>EUR - Euro</option>
@@ -224,7 +274,21 @@ include 'includes/header.php';
                         <option value="INR" <?php echo (isset($user['currency']) && $user['currency'] === 'INR' ? 'selected' : ''); ?>>INR - Indian Rupee</option>
                         <option value="SGD" <?php echo (isset($user['currency']) && $user['currency'] === 'SGD' ? 'selected' : ''); ?>>SGD - Singapore Dollar</option>
                     </select>
-                    <button type="submit" class="btn btn-primary" style="width:auto;">Save</button>
+                    <button type="submit" class="btn btn-primary" style="width:auto; flex:0 0 auto;">Save</button>
+                </div>
+                <div style="margin-top: 12px; padding: 12px; background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 6px;">
+                    <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; margin: 0;">
+                        <input type="checkbox" name="convert_values" value="1" style="width: 18px; height: 18px; margin: 2px 0 0 0; flex-shrink: 0; cursor: pointer;">
+                        <div style="flex: 1;">
+                            <div style="font-size: 0.9rem; font-weight: 500; margin-bottom: 4px;">
+                                <i class="fas fa-exchange-alt" style="margin-right: 6px; opacity: 0.8;"></i>
+                                Convert all existing values to new currency
+                            </div>
+                            <div style="font-size: 0.8rem; opacity: 0.7; line-height: 1.4;">
+                                This will automatically convert all your transactions, budgets, and presets using current exchange rates.
+                            </div>
+                        </div>
+                    </label>
                 </div>
             </div>
             <?php if ($msg && isset($_POST['action']) && $_POST['action'] === 'change_currency'): ?>

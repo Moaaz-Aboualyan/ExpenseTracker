@@ -20,10 +20,16 @@ CREATE TABLE IF NOT EXISTS `categories` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id` INT UNSIGNED NOT NULL,
   `name` VARCHAR(100) NOT NULL,
+  `type` ENUM('income','expense') DEFAULT 'expense',
   `monthly_budget` DECIMAL(10,2) NULL,
+  `recurring_frequency` ENUM('weekly','biweekly','monthly','quarterly','yearly') NULL,
+  `recurring_amount` DECIMAL(10,2) NULL,
+  `recurring_date` INT NULL COMMENT 'Day of month (1-31) or week number for weekly cycles',
+  `last_recurring_date` DATE NULL COMMENT 'Track when last recurring transaction was logged',
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_categories_user` (`user_id`),
+  KEY `idx_categories_type` (`type`),
   CONSTRAINT `fk_categories_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

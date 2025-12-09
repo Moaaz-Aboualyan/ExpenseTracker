@@ -1,7 +1,11 @@
 <?php
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/DatabaseConfiguration.php';
+require_once __DIR__ . '/includes/recurring-income.php';
 require_login();
+
+// Process any pending recurring income for this user
+processRecurringIncome(db(), (int)$_SESSION['user_id']);
 
 // Compute simple aggregates for current month
 $pdo = db();
@@ -22,12 +26,12 @@ if ($chartFilter === 'week') {
     $chartStartDate = date('Y-01-01');
 }
 
-// Fetch chart data: spending by category for the selected period
+// Fetch chart data: expense by category for the selected period (expenses only)
 $chartStmt = $pdo->prepare(
-    "SELECT c.id, c.name, SUM(CASE WHEN t.type='expense' THEN t.amount ELSE 0 END) as spent
+    "SELECT c.id, c.name, SUM(t.amount) as spent
      FROM categories c
-     LEFT JOIN transactions t ON t.category_id = c.id AND t.user_id = c.user_id AND t.date >= ? AND t.date <= ?
-     WHERE c.user_id = ?
+     LEFT JOIN transactions t ON t.category_id = c.id AND t.user_id = c.user_id AND t.date >= ? AND t.date <= ? AND t.type = 'expense'
+     WHERE c.user_id = ? AND c.type = 'expense'
      GROUP BY c.id, c.name
      HAVING spent > 0
      ORDER BY spent DESC"
@@ -38,6 +42,19 @@ $chartData = $chartStmt->fetchAll();
 // Calculate total for percentages
 $chartTotal = array_sum(array_column($chartData, 'spent'));
 
+// Fetch income data separately
+$incomeStmt = $pdo->prepare(
+    "SELECT c.id, c.name, SUM(t.amount) as earned
+     FROM categories c
+     LEFT JOIN transactions t ON t.category_id = c.id AND t.user_id = c.user_id AND t.date >= ? AND t.date <= ? AND t.type = 'income'
+     WHERE c.user_id = ? AND c.type = 'income'
+     GROUP BY c.id, c.name
+     HAVING earned > 0
+     ORDER BY earned DESC"
+);
+$incomeStmt->execute([$chartStartDate, $chartEndDate, $uid]);
+$incomeData = $incomeStmt->fetchAll();
+$incomeTotal = array_sum(array_column($incomeData, 'earned'));
 // Generate colors
 $colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 
@@ -65,31 +82,34 @@ include 'includes/header.php';
 
 <!-- Summary Cards -->
 <div class="grid-3">
-    <div class="card">
-        <div class="text-muted">Total Income</div>
-        <h2 class="text-green"><?php echo get_currency_symbol(); ?><?php echo number_format($income, 2); ?></h2>
-        <div class="text-muted" style="font-size: 0.8rem;">Current month</div>
+    <div class="card" style="border-left: 4px solid #10b981;">
+        <div class="text-muted" style="font-size: 0.85rem;"><i class="fas fa-plus-circle" style="color:#10b981; margin-right:6px;"></i>Total Income</div>
+        <h2 class="text-green" style="margin: 8px 0;"><?php echo get_currency_symbol(); ?><?php echo number_format($income, 2); ?></h2>
+        <div class="text-muted" style="font-size: 0.8rem;">This month</div>
     </div>
-    <div class="card">
-        <div class="text-muted">Total Expenses</div>
-        <h2 class="text-red"><?php echo get_currency_symbol(); ?><?php echo number_format($expenses, 2); ?></h2>
-        <div class="text-muted" style="font-size: 0.8rem;">Current month</div>
+    <div class="card" style="border-left: 4px solid #ef4444;">
+        <div class="text-muted" style="font-size: 0.85rem;"><i class="fas fa-minus-circle" style="color:#ef4444; margin-right:6px;"></i>Total Expenses</div>
+        <h2 class="text-red" style="margin: 8px 0;"><?php echo get_currency_symbol(); ?><?php echo number_format($expenses, 2); ?></h2>
+        <div class="text-muted" style="font-size: 0.8rem;">This month</div>
     </div>
-    <div class="card">
-        <div class="text-muted">Net (Income - Expenses)</div>
-        <h2 style="color: #3b82f6;"><?php echo get_currency_symbol(); ?><?php echo number_format($remaining, 2); ?></h2>
-        <div class="text-muted" style="font-size: 0.8rem;">Current month</div>
+    <div class="card" style="border-left: 4px solid #3b82f6;">
+        <div class="text-muted" style="font-size: 0.85rem;"><i class="fas fa-scale-balanced" style="color:#3b82f6; margin-right:6px;"></i>Net Balance</div>
+        <h2 style="color: #3b82f6; margin: 8px 0;"><?php echo get_currency_symbol(); ?><?php echo number_format($remaining, 2); ?></h2>
+        <div class="text-muted" style="font-size: 0.8rem;">Income - Expenses</div>
     </div>
 </div>
 
 <!-- Main Dashboard Content -->
-<div class="grid-2">
-    <!-- Spending Chart with Filter -->
-    <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h3>Spending by Category</h3>
+<div class="grid-2" style="gap: 20px;">
+    <!-- Spending & Income Charts -->
+    <div class="card" style="grid-column: 1 / -1;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+            <div>
+                <h3 style="margin: 0 0 4px 0;">Spending & Income Analysis</h3>
+                <p class="text-muted" style="margin: 0; font-size: 0.85rem;">Track your expenses and income by category</p>
+            </div>
             <form method="POST" style="display: flex; gap: 8px;">
-                <select name="chart_filter" onchange="this.form.submit();" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #d1d5db; background: white; cursor: pointer;">
+                <select name="chart_filter" onchange="this.form.submit();" style="padding: 8px 12px; border-radius: 4px; border: 1px solid #d1d5db; background: white; cursor: pointer; font-size: 0.9rem;">
                     <option value="week" <?php echo $chartFilter === 'week' ? 'selected' : ''; ?>>This Week</option>
                     <option value="month" <?php echo $chartFilter === 'month' ? 'selected' : ''; ?>>This Month</option>
                     <option value="quarter" <?php echo $chartFilter === 'quarter' ? 'selected' : ''; ?>>This Quarter</option>
@@ -98,80 +118,153 @@ include 'includes/header.php';
             </form>
         </div>
         
-        <?php if (empty($chartData)): ?>
-            <div class="text-muted" style="text-align: center; padding: 30px;">No spending data for this period.</div>
-        <?php else: ?>
-            <div class="chart-wrapper" style="display: flex; gap: 30px; align-items: flex-start;">
-                <!-- Hollow Pie Chart -->
-                <div class="chart-svg-container" style="flex: 1; display: flex; justify-content: center; align-items: center; min-height: 280px; position: relative;">
-                    <svg class="pie-chart" width="220" height="220" style="transform: rotate(-90deg);">
-                        <?php 
-                            $circumference = 2 * M_PI * 70;
-                            $currentOffset = 0;
-                            foreach ($chartData as $idx => $cat): 
-                                $spent = (float)$cat['spent'];
-                                $pct = $chartTotal > 0 ? ($spent / $chartTotal) * 100 : 0;
-                                $color = $colors[$idx % count($colors)];
-                                $strokeDasharray = ($pct / 100) * $circumference;
-                        ?>
-                            <circle 
-                                cx="110" 
-                                cy="110" 
-                                r="70" 
-                                fill="none" 
-                                stroke="<?php echo $color; ?>" 
-                                stroke-width="18" 
-                                stroke-dasharray="<?php echo $strokeDasharray; ?> <?php echo $circumference; ?>"
-                                stroke-dashoffset="<?php echo -$currentOffset; ?>"
-                                stroke-linecap="round"
-                                opacity="0.9"
-                            />
-                        <?php 
-                                $currentOffset += $strokeDasharray;
-                            endforeach; 
-                        ?>
-                        <!-- Center circle for hollow effect -->
-                        <circle cx="110" cy="110" r="45" class="chart-center" stroke-width="1" />
-                    </svg>
-                    <div class="chart-total-label" style="position: absolute; text-align: center; font-size: 0.9rem; font-weight: 600;">
-                        <div style="font-size: 1.2rem;" class="chart-text-dark"><?php echo get_currency_symbol(); ?><?php echo number_format($chartTotal, 2); ?></div>
-                        <div style="font-size: 0.8rem;" class="chart-label-dark">Total</div>
+        <div class="grid-2" style="gap: 20px;">
+            <!-- Expenses Chart -->
+            <div>
+                <h4 style="margin-bottom: 15px; display: flex; align-items: center; gap: 8px;"><i class="fas fa-minus-circle" style="color:#ef4444;"></i>Expenses</h4>
+                <?php if (empty($chartData)): ?>
+                    <div class="text-muted" style="text-align: center; padding: 30px; background: #f9fafb; border-radius: 8px;">No expense data for this period.</div>
+                <?php else: ?>
+                    <div class="chart-wrapper" style="display: flex; flex-direction: column; gap: 15px;">
+                        <!-- Hollow Pie Chart -->
+                        <div class="chart-svg-container" style="display: flex; justify-content: center; align-items: center; min-height: 200px; position: relative;">
+                            <svg class="pie-chart" width="200" height="200" style="transform: rotate(-90deg);">
+                                <?php 
+                                    $circumference = 2 * M_PI * 70;
+                                    $currentOffset = 0;
+                                    foreach ($chartData as $idx => $cat): 
+                                        $spent = (float)$cat['spent'];
+                                        $pct = $chartTotal > 0 ? ($spent / $chartTotal) * 100 : 0;
+                                        $color = $colors[$idx % count($colors)];
+                                        $strokeDasharray = ($pct / 100) * $circumference;
+                                ?>
+                                    <circle 
+                                        cx="100" 
+                                        cy="100" 
+                                        r="70" 
+                                        fill="none" 
+                                        stroke="<?php echo $color; ?>" 
+                                        stroke-width="16" 
+                                        stroke-dasharray="<?php echo $strokeDasharray; ?> <?php echo $circumference; ?>"
+                                        stroke-dashoffset="<?php echo -$currentOffset; ?>"
+                                        stroke-linecap="round"
+                                        opacity="0.9"
+                                    />
+                                <?php 
+                                        $currentOffset += $strokeDasharray;
+                                    endforeach; 
+                                ?>
+                                <!-- Center circle for hollow effect -->
+                                <circle cx="100" cy="100" r="45" class="chart-center" stroke-width="1" />
+                            </svg>
+                            <div class="chart-total-label" style="position: absolute; text-align: center; font-size: 0.9rem; font-weight: 600;">
+                                <div style="font-size: 1.1rem;" class="chart-text-dark"><?php echo get_currency_symbol(); ?><?php echo number_format($chartTotal, 2); ?></div>
+                                <div style="font-size: 0.75rem;" class="chart-label-dark">Spent</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Legend -->
+                        <div class="chart-legend">
+                            <ul style="list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto;">
+                                <?php foreach ($chartData as $idx => $cat): ?>
+                                    <?php 
+                                        $spent = (float)$cat['spent'];
+                                        $pct = $chartTotal > 0 ? ($spent / $chartTotal) * 100 : 0;
+                                        $color = $colors[$idx % count($colors)];
+                                    ?>
+                                    <li style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px; font-size: 0.85rem;">
+                                        <div style="width: 12px; height: 12px; background: <?php echo $color; ?>; border-radius: 2px; flex-shrink: 0;"></div>
+                                        <div style="flex: 1; min-width: 0;">
+                                            <div style="font-weight: 500;" class="chart-text-dark"><?php echo e(substr($cat['name'], 0, 16)); ?></div>
+                                        </div>
+                                        <div style="font-weight: 600;" class="chart-text-dark"><?php echo number_format($pct, 0); ?>%</div>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
                     </div>
-                </div>
-                
-                <!-- Legend -->
-                <div class="chart-legend" style="flex: 1;">
-                    <ul style="list-style: none; padding: 0; margin: 0;">
-                        <?php foreach ($chartData as $idx => $cat): ?>
-                            <?php 
-                                $spent = (float)$cat['spent'];
-                                $pct = $chartTotal > 0 ? ($spent / $chartTotal) * 100 : 0;
-                                $color = $colors[$idx % count($colors)];
-                            ?>
-                            <li style="margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
-                                <div style="width: 14px; height: 14px; background: <?php echo $color; ?>; border-radius: 3px; flex-shrink: 0;"></div>
-                                <div style="flex: 1; min-width: 0;">
-                                    <div style="font-size: 0.9rem; font-weight: 500;" class="chart-text-dark"><?php echo e(substr($cat['name'], 0, 18)); ?></div>
-                                    <div style="font-size: 0.8rem;" class="chart-label-dark"><?php echo number_format($pct, 1); ?>% • <?php echo get_currency_symbol(); ?><?php echo number_format($spent, 2); ?></div>
-                                </div>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
+                <?php endif; ?>
             </div>
-        <?php endif; ?>
+
+            <!-- Income Chart -->
+            <div>
+                <h4 style="margin-bottom: 15px; display: flex; align-items: center; gap: 8px;"><i class="fas fa-plus-circle" style="color:#10b981;"></i>Income</h4>
+                <?php if (empty($incomeData)): ?>
+                    <div class="text-muted" style="text-align: center; padding: 30px; background: #f9fafb; border-radius: 8px;">No income data for this period.</div>
+                <?php else: ?>
+                    <div class="chart-wrapper" style="display: flex; flex-direction: column; gap: 15px;">
+                        <!-- Income Pie Chart -->
+                        <div class="chart-svg-container" style="display: flex; justify-content: center; align-items: center; min-height: 200px; position: relative;">
+                            <svg class="pie-chart" width="200" height="200" style="transform: rotate(-90deg);">
+                                <?php 
+                                    $circumference = 2 * M_PI * 70;
+                                    $currentOffset = 0;
+                                    foreach ($incomeData as $idx => $cat): 
+                                        $earned = (float)$cat['earned'];
+                                        $pct = $incomeTotal > 0 ? ($earned / $incomeTotal) * 100 : 0;
+                                        $color = $colors[$idx % count($colors)];
+                                        $strokeDasharray = ($pct / 100) * $circumference;
+                                ?>
+                                    <circle 
+                                        cx="100" 
+                                        cy="100" 
+                                        r="70" 
+                                        fill="none" 
+                                        stroke="<?php echo $color; ?>" 
+                                        stroke-width="16" 
+                                        stroke-dasharray="<?php echo $strokeDasharray; ?> <?php echo $circumference; ?>"
+                                        stroke-dashoffset="<?php echo -$currentOffset; ?>"
+                                        stroke-linecap="round"
+                                        opacity="0.9"
+                                    />
+                                <?php 
+                                        $currentOffset += $strokeDasharray;
+                                    endforeach; 
+                                ?>
+                                <!-- Center circle for hollow effect -->
+                                <circle cx="100" cy="100" r="45" class="chart-center" stroke-width="1" />
+                            </svg>
+                            <div class="chart-total-label" style="position: absolute; text-align: center; font-size: 0.9rem; font-weight: 600;">
+                                <div style="font-size: 1.1rem;" class="chart-text-dark"><?php echo get_currency_symbol(); ?><?php echo number_format($incomeTotal, 2); ?></div>
+                                <div style="font-size: 0.75rem;" class="chart-label-dark">Earned</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Legend -->
+                        <div class="chart-legend">
+                            <ul style="list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto;">
+                                <?php foreach ($incomeData as $idx => $cat): ?>
+                                    <?php 
+                                        $earned = (float)$cat['earned'];
+                                        $pct = $incomeTotal > 0 ? ($earned / $incomeTotal) * 100 : 0;
+                                        $color = $colors[$idx % count($colors)];
+                                    ?>
+                                    <li style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px; font-size: 0.85rem;">
+                                        <div style="width: 12px; height: 12px; background: <?php echo $color; ?>; border-radius: 2px; flex-shrink: 0;"></div>
+                                        <div style="flex: 1; min-width: 0;">
+                                            <div style="font-weight: 500;" class="chart-text-dark"><?php echo e(substr($cat['name'], 0, 16)); ?></div>
+                                        </div>
+                                        <div style="font-weight: 600;" class="chart-text-dark"><?php echo number_format($pct, 0); ?>%</div>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
     </div>
 
     <!-- Budget Progress -->
-    <div class="card">
-        <h3>Monthly Budget</h3>
+    <div class="card" style="grid-column: 1 / -1;">
+        <h3 style="display: flex; align-items: center; gap: 8px; margin-bottom: 20px;"><i class="fas fa-chart-pie" style="color:#8b5cf6;"></i>Monthly Budget Progress</h3>
         <div style="margin-top: 20px;">
             <?php
-            $stmt = $pdo->prepare("SELECT c.id, c.name, c.monthly_budget,
+            $stmt = $pdo->prepare("SELECT c.id, c.name, c.type, c.monthly_budget,
                 SUM(CASE WHEN t.type='expense' THEN t.amount ELSE 0 END) AS spent
               FROM categories c
               LEFT JOIN transactions t ON t.category_id = c.id AND t.user_id = c.user_id AND DATE_FORMAT(t.date,'%Y-%m') = ?
-              WHERE c.user_id = ?
+              WHERE c.user_id = ? AND c.type = 'expense'
               GROUP BY c.id
               ORDER BY c.name ASC
               LIMIT 8");
@@ -214,7 +307,7 @@ include 'includes/header.php';
             </div>
             <?php endforeach; ?>
             <?php if (!$hasCategories): ?>
-                <div class="text-muted">No categories yet. <a href="BudgetCategoryManager.php" style="color:#3b82f6;">Add one in Categories</a>.</div>
+                <div class="text-muted" style="text-align: center; padding: 30px; background: #f9fafb; border-radius: 8px;">No expense categories yet. <a href="BudgetCategoryManager.php" style="color:#3b82f6; text-decoration: none; font-weight: 600;"><i class="fas fa-arrow-right" style="margin-right: 4px;"></i>Add categories</a>.</div>
             <?php endif; ?>
         </div>
     </div>

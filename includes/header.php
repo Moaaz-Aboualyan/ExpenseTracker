@@ -108,22 +108,22 @@ $excluded_pages = ['UserAuthenticationForm.php', 'UserRegistrationForm.php'];
         ?>
 
         <div class="user-profile">
-            <a href="UserProfileSettings.php">
+            <a href="UserProfileSettings.php" style="flex-shrink: 0;">
                 <div class="avatar avatar-placeholder"></div>
             </a>
-            <div class="user-info">
+            <div class="user-info" style="flex: 1; min-width: 0;">
                 <?php if ($cu): ?>
-                    <div style="font-weight:bold;">&nbsp;<?php echo e($cu['name'] ?: 'User'); ?></div>
-                    <div style="font-size:0.8rem; color:#888;">&nbsp;<?php echo e($cu['email'] ?: ''); ?></div>
+                    <div style="font-weight:bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">&nbsp;<?php echo e($cu['name'] ?: 'User'); ?></div>
+                    <div style="font-size:0.8rem; color:#888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">&nbsp;<?php echo e($cu['email'] ?: ''); ?></div>
                 <?php else: ?>
                     <div style="font-weight:bold;">Guest</div>
                     <div style="font-size:0.8rem; color:#888;">Not signed in</div>
                 <?php endif; ?>
             </div>
-            <div style="display:flex; gap:10px; margin-left:auto;">
+            <div style="display:flex; gap:10px; margin-left:8px; flex-shrink: 0;">
                 <?php if ($cu): ?>
-                    <button id="darkModeToggleHeader" onclick="toggleDarkMode()" style="background:none; border:none; color:#888; cursor:pointer; font-size:1.2rem; transition:color 0.3s;" title="Toggle Dark Mode"><i class="fas fa-moon"></i></button>
-                    <a href="logout.php" style="color:#888; font-size:1.2rem;" title="Logout"><i class="fas fa-sign-out-alt"></i></a>
+                    <button id="darkModeToggleHeader" onclick="toggleDarkMode()" style="background:none; border:none; color:#888; cursor:pointer; font-size:1.2rem; transition:color 0.3s; padding: 4px;" title="Toggle Dark Mode"><i class="fas fa-moon"></i></button>
+                    <a href="logout.php" style="color:#888; font-size:1.2rem; padding: 4px;" title="Logout"><i class="fas fa-sign-out-alt"></i></a>
                 <?php else: ?>
                     <a href="UserAuthenticationForm.php" style="color:#888; font-size:1.2rem;" title="Login"><i class="fas fa-sign-in-alt"></i></a>
                 <?php endif; ?>
