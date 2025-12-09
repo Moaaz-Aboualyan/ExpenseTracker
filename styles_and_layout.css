@@ -101,6 +101,15 @@ h1, h2, h3 {
     border-radius: 50%;
 }
 
+/* Mobile Menu Toggle - Hidden on Desktop */
+.mobile-menu-toggle {
+    display: none;
+}
+
+.mobile-overlay {
+    display: none;
+}
+
 /* Main Content Area */
 .main-content {
     margin-left: 250px;
@@ -669,5 +678,315 @@ body.dark-mode .card [style*="background: #f9fafb"] {
     background-color: #2d2d2d !important;
 }
 
+/* Mobile Menu Toggle Dark Mode */
+html[data-theme="dark"] .mobile-menu-toggle,
+body.dark-mode .mobile-menu-toggle {
+    background-color: #10b981 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* ========================================
+   12. RESPONSIVE - MOBILE VIEW
+   ======================================== */
+
+@media (max-width: 768px) {
+    /* Mobile: Hide sidebar, make content full width */
+    body {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: -250px;
+        width: 250px;
+        height: 100%;
+        z-index: 1000;
+        transition: left 0.3s ease;
+    }
+
+    .sidebar.mobile-open {
+        left: 0;
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Mobile hamburger button */
+    .mobile-menu-toggle {
+        display: block !important;
+        position: fixed;
+        top: 15px;
+        left: 15px;
+        z-index: 999;
+        background: #10b981;
+        color: white;
+        border: none;
+        padding: 10px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 1.2rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .mobile-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+    }
+
+    .mobile-overlay.active {
+        display: block;
+    }
+
+    /* Main content full width on mobile */
+    .main-content {
+        margin-left: 0;
+        padding: 70px 20px 20px;
+        width: 100%;
+    }
+
+    /* Header adjustments */
+    header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    header .actions {
+        flex-direction: column !important;
+        width: 100%;
+    }
+
+    header .actions input,
+    header .actions select,
+    header .actions button {
+        width: 100% !important;
+    }
+
+    /* Grid layouts stack on mobile */
+    .grid-3,
+    .grid-2 {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    /* Cards */
+    .card {
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+
+    /* Tables scroll horizontally */
+    table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    th, td {
+        padding: 10px 12px;
+        font-size: 0.9rem;
+    }
+
+    /* Badges smaller */
+    .badge {
+        font-size: 0.75rem;
+        padding: 3px 6px;
+    }
+
+    /* Buttons stack full width */
+    .btn {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    /* Forms */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    input[type="date"],
+    select,
+    textarea {
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+
+    /* Auth card smaller on mobile */
+    .auth-card {
+        width: 90%;
+        padding: 25px;
+    }
+
+    /* Chart adjustments */
+    .chart-wrapper {
+        flex-direction: column !important;
+        gap: 20px !important;
+        align-items: center !important;
+    }
+
+    .chart-svg-container {
+        min-height: 200px !important;
+        width: 100% !important;
+        max-width: 200px;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        position: relative !important;
+    }
+
+    .pie-chart {
+        width: 180px !important;
+        height: 180px !important;
+        display: block;
+    }
+
+    .chart-total-label {
+        font-size: 0.8rem !important;
+        position: absolute !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+    }
+
+    .chart-total-label > div:first-child {
+        font-size: 1rem !important;
+    }
+
+    .chart-legend {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .chart-legend ul li {
+        font-size: 0.85rem !important;
+    }
+
+    /* Legacy chart selectors for backward compatibility */
+    .card [style*="display: flex; gap"] {
+        flex-direction: column !important;
+        gap: 20px !important;
+    }
+
+    /* Pie chart center on mobile */
+    .card svg[width="220"] {
+        width: 180px;
+        height: 180px;
+    }
+
+    /* Legend full width */
+    .card ul[style*="list-style: none"] {
+        width: 100% !important;
+    }
+
+    /* Dashboard summary cards stack */
+    .grid-3 .card h2 {
+        font-size: 1.5rem;
+    }
+
+    /* Quick add buttons wrap better */
+    .card [style*="flex-wrap: wrap"] button {
+        font-size: 0.85rem;
+        padding: 8px 12px;
+    }
+
+    /* User profile in sidebar */
+    .user-profile {
+        padding: 15px 0;
+    }
+
+    .avatar {
+        width: 35px;
+        height: 35px;
+    }
+
+    /* Logo smaller */
+    .logo {
+        font-size: 1rem;
+        margin-bottom: 30px;
+    }
+
+    /* Nav links */
+    .nav-links a {
+        padding: 12px;
+        font-size: 0.95rem;
+    }
+
+    /* Dark mode toggle button */
+    #darkModeToggleHeader {
+        font-size: 1.1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Extra small devices */
+    .main-content {
+        padding: 60px 15px 15px;
+    }
+
+    h1 {
+        font-size: 1.5rem;
+    }
+
+    h2 {
+        font-size: 1.3rem;
+    }
+
+    h3 {
+        font-size: 1.1rem;
+    }
+
+    .card {
+        padding: 12px;
+    }
+
+    .btn {
+        padding: 10px 18px;
+        font-size: 0.9rem;
+    }
+
+    /* Chart even smaller */
+    .pie-chart {
+        width: 160px !important;
+        height: 160px !important;
+    }
+
+    .chart-svg-container {
+        min-height: 180px !important;
+        max-width: 180px !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+    }
+
+    .chart-total-label {
+        font-size: 0.75rem !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+    }
+
+    .chart-total-label > div:first-child {
+        font-size: 0.9rem !important;
+    }
+
+    /* Legacy selector */
+    .card svg[width="220"] {
+        width: 160px;
+        height: 160px;
+    }
+
+    /* Table text smaller */
+    th, td {
+        font-size: 0.85rem;
+        padding: 8px 10px;
+    }
+}
 
 

@@ -62,7 +62,15 @@ $excluded_pages = ['UserAuthenticationForm.php', 'UserRegistrationForm.php'];
 <body>
 
 <?php if (!in_array($current_page, $excluded_pages)): ?>
-    <aside class="sidebar">
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Menu">
+        <i class="fas fa-bars"></i>
+    </button>
+    
+    <!-- Mobile Overlay -->
+    <div class="mobile-overlay" onclick="closeMobileMenu()"></div>
+    
+    <aside class="sidebar" id="mobileSidebar">
         <div class="logo">
             <i class="fas fa-chart-pie text-green"></i> ExpenseTracker
         </div>
@@ -123,6 +131,28 @@ $excluded_pages = ['UserAuthenticationForm.php', 'UserRegistrationForm.php'];
         </div>
 
         <script>
+            function toggleMobileMenu() {
+                const sidebar = document.getElementById('mobileSidebar');
+                const overlay = document.querySelector('.mobile-overlay');
+                sidebar.classList.toggle('mobile-open');
+                overlay.classList.toggle('active');
+            }
+            
+            function closeMobileMenu() {
+                const sidebar = document.getElementById('mobileSidebar');
+                const overlay = document.querySelector('.mobile-overlay');
+                sidebar.classList.remove('mobile-open');
+                overlay.classList.remove('active');
+            }
+            
+            // Close menu when clicking nav links
+            document.addEventListener('DOMContentLoaded', function() {
+                const navLinks = document.querySelectorAll('.nav-links a');
+                navLinks.forEach(link => {
+                    link.addEventListener('click', closeMobileMenu);
+                });
+            });
+            
             function toggleDarkMode() {
                 const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
                 const newDarkMode = !isDarkMode;

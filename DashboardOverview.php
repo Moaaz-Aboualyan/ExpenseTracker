@@ -101,10 +101,10 @@ include 'includes/header.php';
         <?php if (empty($chartData)): ?>
             <div class="text-muted" style="text-align: center; padding: 30px;">No spending data for this period.</div>
         <?php else: ?>
-            <div style="display: flex; gap: 30px; align-items: flex-start;">
+            <div class="chart-wrapper" style="display: flex; gap: 30px; align-items: flex-start;">
                 <!-- Hollow Pie Chart -->
-                <div style="flex: 1; display: flex; justify-content: center; align-items: center; min-height: 280px;">
-                    <svg width="220" height="220" style="transform: rotate(-90deg);">
+                <div class="chart-svg-container" style="flex: 1; display: flex; justify-content: center; align-items: center; min-height: 280px; position: relative;">
+                    <svg class="pie-chart" width="220" height="220" style="transform: rotate(-90deg);">
                         <?php 
                             $circumference = 2 * M_PI * 70;
                             $currentOffset = 0;
@@ -133,14 +133,14 @@ include 'includes/header.php';
                         <!-- Center circle for hollow effect -->
                         <circle cx="110" cy="110" r="45" class="chart-center" stroke-width="1" />
                     </svg>
-                    <div style="position: absolute; text-align: center; font-size: 0.9rem; font-weight: 600;">
+                    <div class="chart-total-label" style="position: absolute; text-align: center; font-size: 0.9rem; font-weight: 600;">
                         <div style="font-size: 1.2rem;" class="chart-text-dark"><?php echo get_currency_symbol(); ?><?php echo number_format($chartTotal, 2); ?></div>
                         <div style="font-size: 0.8rem;" class="chart-label-dark">Total</div>
                     </div>
                 </div>
                 
                 <!-- Legend -->
-                <div style="flex: 1;">
+                <div class="chart-legend" style="flex: 1;">
                     <ul style="list-style: none; padding: 0; margin: 0;">
                         <?php foreach ($chartData as $idx => $cat): ?>
                             <?php 
