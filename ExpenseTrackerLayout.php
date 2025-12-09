@@ -65,3 +65,70 @@ $excluded_pages = ['UserAuthenticationForm.php', 'UserRegistrationForm.php'];
 
     <main class="main-content">
 <?php endif; ?>
+
+<!-- Mobile Bottom Navbar (visible on mobile only) -->
+<nav class="mobile-bottom-navbar" style="display: none;">
+    <div class="navbar-left">
+        <a href="DashboardOverview.php" class="navbar-item <?php echo $current_page == 'DashboardOverview.php' ? 'active' : ''; ?>">
+            <i class="fas fa-th-large"></i>
+            <span>Dashboard</span>
+        </a>
+    </div>
+    <div class="navbar-left">
+        <a href="TransactionOverview.php" class="navbar-item <?php echo $current_page == 'TransactionOverview.php' ? 'active' : ''; ?>">
+            <i class="fas fa-exchange-alt"></i>
+            <span>Trans</span>
+        </a>
+    </div>
+    <div class="navbar-center">
+        <button class="quick-add-btn" id="mobileQuickAddBtn" onclick="openQuickAddModal()">
+            <i class="fas fa-plus"></i>
+        </button>
+    </div>
+    <div class="navbar-right">
+        <a href="BudgetCategoryManager.php" class="navbar-item <?php echo $current_page == 'BudgetCategoryManager.php' ? 'active' : ''; ?>">
+            <i class="fas fa-tags"></i>
+            <span>Cats</span>
+        </a>
+    </div>
+    <div class="navbar-right">
+        <a href="FinancialReportsDashboard.php" class="navbar-item <?php echo $current_page == 'FinancialReportsDashboard.php' ? 'active' : ''; ?>">
+            <i class="fas fa-chart-bar"></i>
+            <span>Reports</span>
+        </a>
+    </div>
+</nav>
+
+<!-- Mobile Profile Picture (top right) -->
+<div class="mobile-profile-pic" id="mobileProfilePic" onclick="openProfileMenu()" style="display: none;"></div>
+
+<script>
+    // Show mobile navbar and profile pic on mobile
+    function initMobileUI() {
+        const navbar = document.querySelector('.mobile-bottom-navbar');
+        const profilePic = document.querySelector('.mobile-profile-pic');
+        
+        if (window.innerWidth <= 768) {
+            if (navbar) navbar.style.display = 'flex';
+            if (profilePic) profilePic.style.display = 'block';
+        } else {
+            if (navbar) navbar.style.display = 'none';
+            if (profilePic) profilePic.style.display = 'none';
+        }
+    }
+    
+    // Initialize on load and on resize
+    window.addEventListener('load', initMobileUI);
+    window.addEventListener('resize', initMobileUI);
+    
+    // Quick add modal function (you can customize this)
+    function openQuickAddModal() {
+        // Redirect to transaction entry form or open modal
+        window.location.href = 'TransactionEntryForm.php';
+    }
+    
+    // Profile menu function
+    function openProfileMenu() {
+        window.location.href = 'UserProfileSettings.php';
+    }
+</script>

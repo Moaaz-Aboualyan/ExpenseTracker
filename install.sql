@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS `transactions` (
   `amount` DECIMAL(10,2) NOT NULL,
   `note` VARCHAR(255) NULL,
   `date` DATE NOT NULL,
+  `receipt_image` VARCHAR(255) NULL COMMENT 'Filename of uploaded receipt image',
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_transactions_user_date` (`user_id`, `date`),

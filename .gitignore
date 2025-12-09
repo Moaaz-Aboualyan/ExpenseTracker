@@ -1,0 +1,46 @@
+# IDE files
+.idea/
+
+# Environment files with sensitive data (.env files are NEVER committed)
+.env
+.env.local
+.env.*.local
+
+# Uploaded files
+uploads/
+uploads/receipts/*
+
+# Keep directory structure but ignore images
+!uploads/receipts/.gitkeep
+
+# Database credentials (if stored separately)
+database.ini
+db_config.php
+
+# PHP error logs
+error.log
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Backup files
+*.backup
+*.bak
+*.old
+*~
+
+# Composer (if used in future)
+vendor/
+composer.lock
+
+# Environment files
+.env
+.env.local
+
+# Temporary files
+tmp/
+temp/
+cache/

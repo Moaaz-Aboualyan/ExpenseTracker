@@ -194,15 +194,33 @@ include 'includes/header.php';
 
         <div class="form-group">
             <label>Notes</label>
-            <textarea name="notes" rows="3" placeholder="Add a note (optional)..."></textarea>
+            <textarea name="notes" id="notesInput" rows="3" placeholder="Add a note (optional)..."></textarea>
         </div>
 
-        <!-- AI Receipt Scanner Integration Mockup -->
+        <!-- Receipt OCR Scanner -->
         <div class="form-group">
-            <div style="border: 2px dashed #d1d5db; padding: 20px; text-align: center; border-radius: 8px; color: #6b7280; cursor: pointer;">
+            <label>Receipt Image (Optional)</label>
+            <div id="receipt-upload-area" style="border: 2px dashed #d1d5db; padding: 20px; text-align: center; border-radius: 8px; color: #6b7280; cursor: pointer; transition: all 0.3s;">
+                <input type="file" id="receipt-input" accept="image/jpeg,image/jpg,image/png,image/webp" style="display: none;">
                 <i class="fas fa-camera" style="font-size: 24px; margin-bottom: 10px;"></i><br>
-                <strong>Scan Receipt</strong><br>
-                <span style="font-size: 0.85rem;">Upload image to auto-fill details</span>
+                <strong>Scan Receipt with OCR</strong><br>
+                <span style="font-size: 0.85rem;">Upload image to auto-fill transaction details</span><br>
+                <small style="font-size: 0.75rem; color: #9ca3af; margin-top: 5px; display: inline-block;">Supports JPEG, PNG, WEBP (max 5MB)</small>
+            </div>
+            <div id="receipt-preview" style="display: none; margin-top: 15px;">
+                <div style="display: flex; gap: 15px; align-items: start;">
+                    <img id="preview-image" src="" alt="Receipt preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 1px solid #e5e7eb;">
+                    <div style="flex: 1;">
+                        <h4 style="margin: 0 0 10px 0;">Processing Receipt...</h4>
+                        <div id="ocr-status" style="font-size: 0.9rem; color: #6b7280;">
+                            <i class="fas fa-spinner fa-spin"></i> Analyzing receipt with OCR...
+                        </div>
+                        <div id="ocr-results" style="margin-top: 10px; display: none;"></div>
+                    </div>
+                    <button type="button" id="clear-receipt" class="btn btn-secondary" style="width: auto; padding: 8px 12px;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -243,6 +261,232 @@ function updateCategoryOptions() {
     }
 }
 updateCategoryOptions();
+
+// Receipt OCR Upload Handler
+const uploadArea = document.getElementById('receipt-upload-area');
+const fileInput = document.getElementById('receipt-input');
+const previewContainer = document.getElementById('receipt-preview');
+const previewImage = document.getElementById('preview-image');
+const ocrStatus = document.getElementById('ocr-status');
+const ocrResults = document.getElementById('ocr-results');
+const clearButton = document.getElementById('clear-receipt');
+
+// Click to upload
+uploadArea.addEventListener('click', () => fileInput.click());
+
+// Drag and drop
+uploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadArea.style.borderColor = '#3b82f6';
+    uploadArea.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
+});
+
+uploadArea.addEventListener('dragleave', () => {
+    uploadArea.style.borderColor = '#d1d5db';
+    uploadArea.style.backgroundColor = 'transparent';
+});
+
+uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadArea.style.borderColor = '#d1d5db';
+    uploadArea.style.backgroundColor = 'transparent';
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        fileInput.files = files;
+        handleFileUpload(files[0]);
+    }
+});
+
+// File input change
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+        handleFileUpload(e.target.files[0]);
+    }
+});
+
+// Clear receipt
+clearButton.addEventListener('click', () => {
+    fileInput.value = '';
+    previewContainer.style.display = 'none';
+    uploadArea.style.display = 'block';
+    ocrResults.style.display = 'none';
+    ocrResults.innerHTML = '';
+});
+
+// Handle file upload and OCR
+async function handleFileUpload(file) {
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+        alert('Invalid file type. Please upload a JPEG, PNG, or WEBP image.');
+        return;
+    }
+    
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+        alert('File size exceeds 5MB limit.');
+        return;
+    }
+    
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        previewImage.src = e.target.result;
+        uploadArea.style.display = 'none';
+        previewContainer.style.display = 'block';
+        ocrStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing receipt with OCR...';
+        ocrResults.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+    
+    // Upload and process
+    const formData = new FormData();
+    formData.append('receipt_image', file);
+    
+    try {
+        const response = await fetch('upload_receipt.php', {
+            method: 'POST',
+            body: formData
+        });
+        
+        // First check if response is valid
+        const responseText = await response.text();
+        
+        // Try to parse JSON
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch (parseError) {
+            // JSON parse failed - server error
+            console.error('Invalid JSON response:', responseText);
+            ocrStatus.innerHTML = '<i class="fas fa-times-circle" style="color: #ef4444;"></i> Server error';
+            ocrResults.style.display = 'block';
+            ocrResults.innerHTML = '<p style="color: #ef4444; font-size: 0.85rem;">Server returned invalid response. Please check:<br>1. API key is configured in .env file<br>2. Server error logs<br>3. PHP configuration</p>';
+            return;
+        }
+        
+        if (result.success) {
+            ocrStatus.innerHTML = '<i class="fas fa-check-circle" style="color: #10b981;"></i> Receipt processed successfully!';
+            displayOCRResults(result.data);
+            autoFillForm(result.data);
+        } else {
+            ocrStatus.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #f59e0b;"></i> ' + result.message;
+            ocrResults.style.display = 'block';
+            
+            // Check if it's an API key error
+            if (result.message.includes('API key') || result.message.includes('not configured')) {
+                ocrResults.innerHTML = '<p style="color: #ef4444; font-size: 0.85rem;"><strong>API Key Not Configured</strong><br>Please add your Google Vision API key to the .env file. See documentation for setup instructions.</p>';
+            } else {
+                ocrResults.innerHTML = '<p style="color: #ef4444; font-size: 0.85rem;">OCR processing failed: ' + result.message + '<br>You can still fill in the form manually.</p>';
+            }
+        }
+    } catch (error) {
+        ocrStatus.innerHTML = '<i class="fas fa-times-circle" style="color: #ef4444;"></i> Upload failed';
+        ocrResults.style.display = 'block';
+        ocrResults.innerHTML = '<p style="color: #ef4444; font-size: 0.85rem;">Error: ' + error.message + '<br>Please check your internet connection and try again.</p>';
+        console.error('Upload error:', error);
+    }
+}
+
+// Display OCR extracted data
+function displayOCRResults(data) {
+    ocrResults.style.display = 'block';
+    
+    let html = '<div style="background: #f9fafb; padding: 12px; border-radius: 6px; font-size: 0.85rem;">';
+    html += '<strong style="display: block; margin-bottom: 8px;">Extracted Data:</strong>';
+    
+    if (data.amount) {
+        html += '<div><i class="fas fa-dollar-sign" style="width: 20px;"></i> <strong>Amount:</strong> $' + data.amount.toFixed(2) + '</div>';
+    }
+    
+    if (data.date) {
+        html += '<div><i class="fas fa-calendar" style="width: 20px;"></i> <strong>Date:</strong> ' + data.date + '</div>';
+    }
+    
+    if (data.merchant) {
+        html += '<div><i class="fas fa-store" style="width: 20px;"></i> <strong>Merchant:</strong> ' + data.merchant + '</div>';
+    }
+    
+    if (data.suggested_category) {
+        html += '<div><i class="fas fa-tag" style="width: 20px; color: #10b981;"></i> <strong>Category:</strong> Auto-selected ✓</div>';
+    }
+    
+    if (data.items && data.items.length > 0) {
+        html += '<div style="margin-top: 8px;"><strong>Items:</strong><ul style="margin: 5px 0; padding-left: 20px;">';
+        data.items.forEach(item => {
+            html += '<li>' + item.name + ' - $' + item.price.toFixed(2) + '</li>';
+        });
+        html += '</ul></div>';
+    }
+    
+    html += '<small style="display: block; margin-top: 8px; color: #6b7280;">Review and adjust the auto-filled values before saving.</small>';
+    html += '</div>';
+    
+    ocrResults.innerHTML = html;
+}
+
+// Auto-fill form with OCR data
+function autoFillForm(data) {
+    // Fill amount
+    if (data.amount) {
+        const amountInput = document.querySelector('input[name="amount"]');
+        if (amountInput) {
+            amountInput.value = data.amount.toFixed(2);
+        }
+    }
+    
+    // Fill date
+    if (data.date) {
+        const dateInput = document.querySelector('input[name="date"]');
+        if (dateInput) {
+            dateInput.value = data.date;
+        }
+    }
+    
+    // Auto-select category if suggested
+    if (data.suggested_category) {
+        const categorySelect = document.getElementById('categorySelect');
+        if (categorySelect) {
+            categorySelect.value = data.suggested_category;
+            // Trigger change event to update any dependent UI
+            categorySelect.dispatchEvent(new Event('change'));
+        }
+    }
+    
+    // Fill notes with merchant name
+    if (data.merchant) {
+        const notesInput = document.getElementById('notesInput');
+        if (notesInput && !notesInput.value) {
+            notesInput.value = data.merchant;
+        }
+    }
+    
+    // Highlight filled fields briefly
+    setTimeout(() => {
+        const filledElements = [];
+        
+        // Highlight amount and date inputs
+        const amountInput = document.querySelector('input[name="amount"]');
+        const dateInput = document.querySelector('input[name="date"]');
+        if (amountInput && amountInput.value) filledElements.push(amountInput);
+        if (dateInput && dateInput.value) filledElements.push(dateInput);
+        
+        // Highlight category select if auto-selected
+        if (data.suggested_category) {
+            const categorySelect = document.getElementById('categorySelect');
+            if (categorySelect) filledElements.push(categorySelect);
+        }
+        
+        filledElements.forEach(element => {
+            element.style.transition = 'background-color 0.5s';
+            element.style.backgroundColor = '#dcfce7';
+            setTimeout(() => {
+                element.style.backgroundColor = '';
+            }, 2000);
+        });
+    }, 100);
+}
 </script>
 
 <!-- Quick Add Presets -->
