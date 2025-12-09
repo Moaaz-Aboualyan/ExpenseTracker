@@ -8,6 +8,39 @@ $pdo = db();
 $uid = (int)$_SESSION['user_id'];
 $ym = date('Y-m');
 
+// Chart filter: default to current month, allow date range
+$chartFilter = isset($_POST['chart_filter']) ? trim($_POST['chart_filter']) : 'month';
+$chartStartDate = date('Y-m-d', strtotime('first day of this month'));
+$chartEndDate = date('Y-m-d');
+
+if ($chartFilter === 'week') {
+    $chartStartDate = date('Y-m-d', strtotime('monday this week'));
+} elseif ($chartFilter === 'quarter') {
+    $quarter = ceil(date('m') / 3);
+    $chartStartDate = date('Y-' . str_pad(($quarter * 3 - 2), 2, '0', STR_PAD_LEFT) . '-01');
+} elseif ($chartFilter === 'year') {
+    $chartStartDate = date('Y-01-01');
+}
+
+// Fetch chart data: spending by category for the selected period
+$chartStmt = $pdo->prepare(
+    "SELECT c.id, c.name, SUM(CASE WHEN t.type='expense' THEN t.amount ELSE 0 END) as spent
+     FROM categories c
+     LEFT JOIN transactions t ON t.category_id = c.id AND t.user_id = c.user_id AND t.date >= ? AND t.date <= ?
+     WHERE c.user_id = ?
+     GROUP BY c.id, c.name
+     HAVING spent > 0
+     ORDER BY spent DESC"
+);
+$chartStmt->execute([$chartStartDate, $chartEndDate, $uid]);
+$chartData = $chartStmt->fetchAll();
+
+// Calculate total for percentages
+$chartTotal = array_sum(array_column($chartData, 'spent'));
+
+// Generate colors
+$colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
+
 // Total income and expenses for current month
 $stmt = $pdo->prepare("SELECT 
     SUM(CASE WHEN type='income' THEN amount ELSE 0 END) AS income,
@@ -51,13 +84,82 @@ include 'includes/header.php';
 
 <!-- Main Dashboard Content -->
 <div class="grid-2">
-    <!-- Spending Chart Placeholder -->
+    <!-- Spending Chart with Filter -->
     <div class="card">
-        <h3>Spending by Category</h3>
-        <div class="chart-container" style="height: 250px; display: flex; align-items: center; justify-content: center; border-radius: 8px; margin-top: 15px;">
-            <!-- In a real app, a Chart.js canvas would go here -->
-            <div style="width: 150px; height: 150px; border-radius: 50%; border: 20px solid #10b981; border-right-color: #3b82f6; border-bottom-color: #f59e0b;"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3>Spending by Category</h3>
+            <form method="POST" style="display: flex; gap: 8px;">
+                <select name="chart_filter" onchange="this.form.submit();" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #d1d5db; background: white; cursor: pointer;">
+                    <option value="week" <?php echo $chartFilter === 'week' ? 'selected' : ''; ?>>This Week</option>
+                    <option value="month" <?php echo $chartFilter === 'month' ? 'selected' : ''; ?>>This Month</option>
+                    <option value="quarter" <?php echo $chartFilter === 'quarter' ? 'selected' : ''; ?>>This Quarter</option>
+                    <option value="year" <?php echo $chartFilter === 'year' ? 'selected' : ''; ?>>This Year</option>
+                </select>
+            </form>
         </div>
+        
+        <?php if (empty($chartData)): ?>
+            <div class="text-muted" style="text-align: center; padding: 30px;">No spending data for this period.</div>
+        <?php else: ?>
+            <div style="display: flex; gap: 30px; align-items: flex-start;">
+                <!-- Hollow Pie Chart -->
+                <div style="flex: 1; display: flex; justify-content: center; align-items: center; min-height: 280px;">
+                    <svg width="220" height="220" style="transform: rotate(-90deg);">
+                        <?php 
+                            $circumference = 2 * M_PI * 70;
+                            $currentOffset = 0;
+                            foreach ($chartData as $idx => $cat): 
+                                $spent = (float)$cat['spent'];
+                                $pct = $chartTotal > 0 ? ($spent / $chartTotal) * 100 : 0;
+                                $color = $colors[$idx % count($colors)];
+                                $strokeDasharray = ($pct / 100) * $circumference;
+                        ?>
+                            <circle 
+                                cx="110" 
+                                cy="110" 
+                                r="70" 
+                                fill="none" 
+                                stroke="<?php echo $color; ?>" 
+                                stroke-width="18" 
+                                stroke-dasharray="<?php echo $strokeDasharray; ?> <?php echo $circumference; ?>"
+                                stroke-dashoffset="<?php echo -$currentOffset; ?>"
+                                stroke-linecap="round"
+                                opacity="0.9"
+                            />
+                        <?php 
+                                $currentOffset += $strokeDasharray;
+                            endforeach; 
+                        ?>
+                        <!-- Center circle for hollow effect -->
+                        <circle cx="110" cy="110" r="45" class="chart-center" stroke-width="1" />
+                    </svg>
+                    <div style="position: absolute; text-align: center; font-size: 0.9rem; font-weight: 600;">
+                        <div style="font-size: 1.2rem;" class="chart-text-dark"><?php echo get_currency_symbol(); ?><?php echo number_format($chartTotal, 2); ?></div>
+                        <div style="font-size: 0.8rem;" class="chart-label-dark">Total</div>
+                    </div>
+                </div>
+                
+                <!-- Legend -->
+                <div style="flex: 1;">
+                    <ul style="list-style: none; padding: 0; margin: 0;">
+                        <?php foreach ($chartData as $idx => $cat): ?>
+                            <?php 
+                                $spent = (float)$cat['spent'];
+                                $pct = $chartTotal > 0 ? ($spent / $chartTotal) * 100 : 0;
+                                $color = $colors[$idx % count($colors)];
+                            ?>
+                            <li style="margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 14px; height: 14px; background: <?php echo $color; ?>; border-radius: 3px; flex-shrink: 0;"></div>
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-size: 0.9rem; font-weight: 500;" class="chart-text-dark"><?php echo e(substr($cat['name'], 0, 18)); ?></div>
+                                    <div style="font-size: 0.8rem;" class="chart-label-dark"><?php echo number_format($pct, 1); ?>% • <?php echo get_currency_symbol(); ?><?php echo number_format($spent, 2); ?></div>
+                                </div>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
+        <?php endif; ?>
     </div>
 
     <!-- Budget Progress -->
