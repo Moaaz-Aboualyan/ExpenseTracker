@@ -55,6 +55,6 @@ cd ExpenseTracker
 - **Important**: Never commit the `.env` file to Git
 
 **6. Access the Application**
-- Open browser and go to: `http://localhost/wap/`
+- Open browser and go to: `http://localhost/ExpenseTracker/`
 - Register a new account
 - Start tracking your expenses!
